@@ -1,6 +1,7 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const Web3 = require('web3');
+const dig = require("node-dig-dns"); //ME
 const web3 = new Web3('https://ropsten.infura.io/v3/66a470c1158f441cac9c502cd63d4b9b');
 
 const consortiumAddress = '0xA6B9A8bD75a586e5d713C23682cF0fb252aD0Cff';
@@ -17,95 +18,102 @@ function verifyCertificate() {
 	if(button.textContent == "Verify") {
 
 		if(document.getElementById('upload-file').files[0] != null) {
-			var issuerId = checkIssuerId(document.getElementById("HEId").value);
-			if(issuerId == null) {
-				return;
-			}
+			//ME
+			var hostname = document.getElementById("HEId").value;
+			var answer = dnsLookup(hostname).then((answer) => {
+				var HEId = answer;
 
-			var id = checkCivilId(document.getElementById("civilId").value);
-			if(id == null) {
-				return;
-			}
+				//var issuerId = checkIssuerId(document.getElementById("HEId").value);
+				var issuerId = checkIssuerId(HEId);
+				if(issuerId == null) {
+					return;
+				}
 
-			document.getElementById("resultText").style.color = "black";
+				var id = checkCivilId(document.getElementById("civilId").value);
+				if(id == null) {
+					return;
+				}
 
-			consortiumContract.methods.getHEI(issuerId).call((consortiumErr,issuerContractAddress) => {
-				console.log(issuerContractAddress);
+				document.getElementById("resultText").style.color = "black";
 
-				if(consortiumErr == null && issuerContractAddress != '0x0') {
-					const issuerContract = new web3.eth.Contract(issuerContractABI,issuerContractAddress);
+				consortiumContract.methods.getHEI(issuerId).call((consortiumErr,issuerContractAddress) => {
+					console.log(issuerContractAddress);
 
-					issuerContract.methods.verifyCertificate(id).call((err,certificateHash) => {
-						if(err == null) {
-							var fileBytes = fs.readFileSync(document.getElementById('upload-file').files[0].path);
+					if(consortiumErr == null && issuerContractAddress != '0x0') {
+						const issuerContract = new web3.eth.Contract(issuerContractABI,issuerContractAddress);
 
-							var hashFunction = crypto.createHash('sha256');
-			    			hashFunction.update(fileBytes);
-			    			var bytes = hashFunction.digest();
-			    			var hashBytes = '0x' + bytes.toString('hex');
+						issuerContract.methods.verifyCertificate(id).call((err,certificateHash) => {
+							if(err == null) {
+								var fileBytes = fs.readFileSync(document.getElementById('upload-file').files[0].path);
 
-			    			console.log(certificateHash);
+								var hashFunction = crypto.createHash('sha256');
+								hashFunction.update(fileBytes);
+								var bytes = hashFunction.digest();
+								var hashBytes = '0x' + bytes.toString('hex');
 
-			    			if(hashBytes == certificateHash) {
-			    				document.getElementById("inputBoxHE").style.display = "none";
+								console.log(certificateHash);
 
-			    				document.getElementById("inputBox").style.display = "none";
+								if(hashBytes == certificateHash) {
+									document.getElementById("inputBoxHE").style.display = "none";
+
+									document.getElementById("inputBox").style.display = "none";
+
+									document.getElementById("result").style.display = "block";
+
+									document.getElementById("resultText").innerHTML = "Successful certificate verification";
+
+									button.innerHTML = "Back";
+								}
+								else {
+									document.getElementById("inputBoxHE").style.display = "none";
+
+									document.getElementById("inputBox").style.display = "none";
+
+									document.getElementById("result").style.display = "block";
+
+									document.getElementById("resultText").innerHTML = "Certificate rejected";
+
+									button.innerHTML = "Back";
+								}
+							}
+							else {
+								document.getElementById("inputBoxHE").style.display = "none";
+
+								document.getElementById("inputBox").style.display = "none";
 
 								document.getElementById("result").style.display = "block";
 
-								document.getElementById("resultText").innerHTML = "Successful certificate verification";
+								document.getElementById("resultText").innerHTML = "Verification failure. Try again";
 
 								button.innerHTML = "Back";
-			    			}
-			    			else {
-			    				document.getElementById("inputBoxHE").style.display = "none";
+							}
+						})
+					}
+					else if(issuerContractAddress == '0x0') {
+						document.getElementById("inputBoxHE").style.display = "none";
 
-			    				document.getElementById("inputBox").style.display = "none";
+						document.getElementById("inputBox").style.display = "none";
 
-								document.getElementById("result").style.display = "block";
+						document.getElementById("result").style.display = "block";
 
-								document.getElementById("resultText").innerHTML = "Certificate rejected";
+						document.getElementById("resultText").innerHTML = "Issuer ID does not match any contract";
 
-								button.innerHTML = "Back";
-			    			}
-						}
-						else {
-			    			document.getElementById("inputBoxHE").style.display = "none";
+						button.innerHTML = "Back";
+					}
+					else {
+						document.getElementById("inputBoxHE").style.display = "none";
 
-							document.getElementById("inputBox").style.display = "none";
+						document.getElementById("inputBox").style.display = "none";
 
-							document.getElementById("result").style.display = "block";
+						document.getElementById("result").style.display = "block";
 
-							document.getElementById("resultText").innerHTML = "Verification failure. Try again";
+						document.getElementById("resultText").innerHTML = "Verification failure. Try again";
 
-							button.innerHTML = "Back";
-						}
-					})
-				}
-				else if(issuerContractAddress == '0x0') {
-					document.getElementById("inputBoxHE").style.display = "none";
-
-					document.getElementById("inputBox").style.display = "none";
-
-					document.getElementById("result").style.display = "block";
-
-					document.getElementById("resultText").innerHTML = "Issuer ID does not match any contract";
-
-					button.innerHTML = "Back";
-				}
-				else {
-					document.getElementById("inputBoxHE").style.display = "none";
-
-					document.getElementById("inputBox").style.display = "none";
-
-					document.getElementById("result").style.display = "block";
-
-					document.getElementById("resultText").innerHTML = "Verification failure. Try again";
-
-					button.innerHTML = "Back";
-				}
-				button.type = "reset";
-			})
+						button.innerHTML = "Back";
+					}
+					button.type = "reset";
+				})
+			});
 		}
 		else {
 			document.getElementById("result").style.display = "block";
@@ -175,3 +183,17 @@ function checkCivilId(strId) {
 		return parseInt(strId);
 	}
 }
+
+function dnsLookup(hostname){ //ME
+	return dig(['@127.0.0.1', hostname, 'TXT'])
+		.then((result) => {
+			var answer = result["answer"][0]["value"];
+			var addr = answer.match(/"(.*?)"/)[1];
+			return addr;
+		})
+		.catch((err) => {
+			console.log('Error:', err);
+			return err;
+		});
+}
+
